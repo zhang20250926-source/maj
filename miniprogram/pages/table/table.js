@@ -27,6 +27,7 @@ Page({
     playerId: null,
     gameStatus: 'WAITING',
     currentPlayerId: null,
+    pendingKong: null,
     needsDraw: false,
     selfWind: '南',
     ownScore: 100,
@@ -74,7 +75,7 @@ Page({
 
   applyGameState(game, includesPrivateHand = false) {
     const symbolFor = (card) => card.suit === 'wan' ? '萬' : card.suit === 'tiao' ? '竹' : '●'
-    const update = { tilesLeft: game.tilesLeft, gameStatus: game.status, currentPlayerId: game.currentPlayerId }
+    const update = { tilesLeft: game.tilesLeft, gameStatus: game.status, currentPlayerId: game.currentPlayerId, pendingKong: game.pendingKong || null }
     if (game.randomChicken) update.randomChicken = { ...game.randomChicken, value: game.randomChicken.rank, symbol: symbolFor(game.randomChicken), label: this.tileName(game.randomChicken) }
     if (game.players) {
       const self = game.players.find((item) => item.id === this.data.playerId)
@@ -130,6 +131,18 @@ Page({
 
   drawTile() { this.submitAction({ type: 'DRAW' }) },
 
+  tryKong() {
+    if (this.data.currentPlayerId !== this.data.playerId) return this.submitAction({ type: 'MING_KONG' })
+    const selected = this.data.tiles[this.data.selectedTileIndex]
+    if (!selected) return wx.showToast({ title: '暗杠或补杠请先选牌', icon: 'none' })
+    wx.showActionSheet({
+      itemList: ['暗杠', '补杠'],
+      success: ({ tapIndex }) => this.submitAction({ type: tapIndex === 0 ? 'AN_KONG' : 'BU_KONG', card: { suit: selected.suit, rank: selected.value } })
+    })
+  },
+
+  finishBuKong() { this.submitAction({ type: 'FINISH_BU_KONG' }) },
+
   async submitAction(action) {
     try {
       const { result, game } = await gameAction(this.data.roomId, { ...action, playerId: this.data.playerId })
@@ -142,9 +155,9 @@ Page({
 
   tryAction(event) {
     const action = event.currentTarget.dataset.action
-    const types = { '碰': 'PONG', '杠': 'MING_KONG', '胡': 'WIN' }
+    const types = { '碰': 'PONG', '胡': 'WIN' }
     const payload = { type: types[action] }
-    if (action === '胡') payload.method = this.data.currentPlayerId === this.data.playerId ? 'selfDraw' : 'discard'
+    if (action === '胡') payload.method = this.data.pendingKong && this.data.pendingKong.playerId !== this.data.playerId ? 'robKong' : (this.data.currentPlayerId === this.data.playerId ? 'selfDraw' : 'discard')
     this.submitAction(payload)
   },
 

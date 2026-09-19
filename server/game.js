@@ -107,7 +107,18 @@ class MahjongGame {
     player.exposed.push({ type: 'kong', subtype: 'ming', tiles: Array.from({ length: 4 }, () => rules.clone(record.card)) })
     this.transferChickenOnClaim(record, playerId)
     this.lastDiscard = null; this.turnSeat = this.playerIds.indexOf(playerId)
-    return { payments: rules.kongPayments({ type: 'ming', playerId, sourcePlayerId: record.playerId, players: this.playerIds }), snapshot: this.snapshot() }
+    const payments = rules.kongPayments({ type: 'ming', playerId, sourcePlayerId: record.playerId, players: this.playerIds })
+    return { kind: 'mingKong', payments, deltas: rules.sumTransfers(this.playerIds, payments), snapshot: this.snapshot() }
+  }
+
+  anKong(playerId, card) {
+    if (this.status !== 'PLAYING' || this.currentPlayerId() !== playerId || this.lastDiscard) throw new Error('当前不能暗杠')
+    const player = this.player(playerId)
+    if (player.hand.filter((candidate) => sameTile(candidate, card)).length < 4) throw new Error('没有四张相同手牌，不能暗杠')
+    this.takeFromHand(player, card, 4)
+    player.exposed.push({ type: 'kong', subtype: 'an', tiles: Array.from({ length: 4 }, () => rules.clone(card)) })
+    const payments = rules.kongPayments({ type: 'an', playerId, players: this.playerIds })
+    return { kind: 'anKong', payments, deltas: rules.sumTransfers(this.playerIds, payments), snapshot: this.snapshot() }
   }
 
   buKong(playerId, card) {
@@ -123,7 +134,8 @@ class MahjongGame {
   finishBuKong() {
     if (!this.pendingKong) throw new Error('当前没有待确认的补杠')
     const { playerId } = this.pendingKong; this.pendingKong = null
-    return { payments: rules.kongPayments({ type: 'bu', playerId, players: this.playerIds }), snapshot: this.snapshot() }
+    const payments = rules.kongPayments({ type: 'bu', playerId, players: this.playerIds })
+    return { kind: 'buKong', payments, deltas: rules.sumTransfers(this.playerIds, payments), snapshot: this.snapshot() }
   }
 
   win(playerId, method = 'selfDraw') {

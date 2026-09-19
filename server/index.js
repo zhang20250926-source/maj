@@ -103,6 +103,7 @@ const server = http.createServer(async (request, response) => {
           try { result = game.pong(body.playerId) } catch (error) { result = game.falsePong(body.playerId); result.notice = error.message }
         }
         else if (body.type === 'MING_KONG') result = game.mingKong(body.playerId)
+        else if (body.type === 'AN_KONG') result = game.anKong(body.playerId, body.card)
         else if (body.type === 'BU_KONG') result = game.buKong(body.playerId, body.card)
         else if (body.type === 'FINISH_BU_KONG') result = game.finishBuKong()
         else if (body.type === 'PASS') result = game.continueAfterNoClaim()
@@ -117,6 +118,9 @@ const server = http.createServer(async (request, response) => {
           store.removeActiveGame(roomId)
         } else if (result.kind === 'falsePong' && result.deltas) {
           store.recordAdjustment({ roomId, deltas: result.deltas, summary: { type: 'falsePong', playerId: result.playerId } })
+          store.saveActiveGame(roomId, game.toState())
+        } else if (result.payments && result.payments.length && result.deltas) {
+          store.recordAdjustment({ roomId, deltas: result.deltas, summary: { type: result.kind || 'inRoundPayment', playerId: body.playerId, payments: result.payments } })
           store.saveActiveGame(roomId, game.toState())
         } else {
           store.saveActiveGame(roomId, game.toState())
