@@ -86,8 +86,9 @@ const server = http.createServer(async (request, response) => {
       if (request.method === 'POST' && segments[3] === 'start') {
         const body = await readJson(request); assertActor(actorId, body.operatorId); const room = store.getRoom(roomId)
         if (room.adminId !== body.operatorId) throw new Error('只有管理员可以开局')
-        const game = new MahjongGame({ playerIds: room.seats.map((seat) => seat.playerId) })
+        const game = new MahjongGame({ playerIds: room.seats.map((seat) => seat.playerId), previousRandomChickenKey: room.previousRandomChickenKey, randomChickenStreak: room.randomChickenStreak || 0 })
         game.assignSeats(room.diceByPlayer); const snapshot = game.start(); games.set(roomId, game)
+        store.beginRound({ roomId, randomChickenKey: game.randomChickenKey, chickenBoost: game.chickenBoost })
         store.saveActiveGame(roomId, game.toState()); await store.flush()
         realtime.broadcast(roomId, { type: 'GAME_STATE', game: snapshot })
         return send(response, 200, { game: snapshot })
@@ -114,6 +115,9 @@ const server = http.createServer(async (request, response) => {
         if (snapshot.status === 'FINISHED' && result.deltas) {
           store.recordRound({ roomId, deltas: result.deltas, summary: { winnerId: result.winnerId || null, method: result.method || result.kind || 'draw', forfeitedPlayerId: result.forfeited ? result.playerId : null, hand: result.hand || null, payments: result.payments || [] } })
           store.removeActiveGame(roomId)
+        } else if (result.kind === 'falsePong' && result.deltas) {
+          store.recordAdjustment({ roomId, deltas: result.deltas, summary: { type: 'falsePong', playerId: result.playerId } })
+          store.saveActiveGame(roomId, game.toState())
         } else {
           store.saveActiveGame(roomId, game.toState())
         }

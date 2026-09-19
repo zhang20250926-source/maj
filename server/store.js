@@ -112,6 +112,17 @@ class GameStore {
     return room
   }
 
+  beginRound({ roomId, randomChickenKey, chickenBoost }) {
+    const room = this.getRoom(roomId)
+    if (room.seats.length !== 4) throw new Error('必须四位正式玩家才能开局')
+    room.status = 'PLAYING'
+    room.previousRandomChickenKey = randomChickenKey
+    room.randomChickenStreak = chickenBoost
+    room.diceByPlayer = {}
+    this.save()
+    return room
+  }
+
   topUp({ roomId, operatorId, playerId, amount = 100 }) {
     const room = this.getRoom(roomId)
     if (room.adminId !== operatorId) throw new Error('只有管理员可以补分')
@@ -132,10 +143,24 @@ class GameStore {
       this.data.players[playerId].score += delta
     }
     room.roundNumber += 1
+    room.status = 'WAITING'
     const round = { id: crypto.randomUUID(), roomId, number: room.roundNumber, summary, deltas, createdAt: new Date().toISOString() }
     this.data.rounds.push(round)
     this.save()
     return round
+  }
+
+  recordAdjustment({ roomId, summary, deltas }) {
+    const room = this.getRoom(roomId)
+    const playerIds = room.seats.map((seat) => seat.playerId)
+    for (const playerId of playerIds) {
+      const delta = Number(deltas[playerId] || 0)
+      this.data.players[playerId].score += delta
+    }
+    const adjustment = { id: crypto.randomUUID(), type: 'SCORE_ADJUSTMENT', roomId, summary, deltas, createdAt: new Date().toISOString() }
+    this.data.transactions.push(adjustment)
+    this.save()
+    return adjustment
   }
 
   leaderboard(roomId = null) {

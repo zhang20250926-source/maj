@@ -188,7 +188,8 @@ class MahjongGame {
     const owner = this.player(record.playerId); const claimant = this.player(claimantId)
     owner.chickenDiscards = owner.chickenDiscards.filter((candidate) => candidate !== record)
     claimant.responsibility.push({ from: record.playerId, card: rules.clone(record.card), amount: 1 })
-    claimant.chickenDiscards.push({ ...record, playerId: claimantId, claimed: true, value: 1 })
+    // 被碰/杠走的鸡仍保留它已经打出时的鸡值；吃碰者另外承担一只“赔鸡”。
+    claimant.chickenDiscards.push({ ...record, playerId: claimantId, claimed: true })
   }
 
   continueAfterNoClaim() {
