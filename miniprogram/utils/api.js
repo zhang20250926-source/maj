@@ -1,0 +1,54 @@
+const { API_BASE_URL, CLOUD_ENV_ID, CLOUD_SERVICE, USE_CLOUD_RUN } = require('../config')
+
+function request({ path, method = 'GET', data }) {
+  if (USE_CLOUD_RUN) return callContainer({ path, method, data })
+  return new Promise((resolve, reject) => {
+    const token = getApp().globalData.token
+    wx.request({
+      url: `${API_BASE_URL}${path}`,
+      method,
+      data,
+      header: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      success: ({ statusCode, data: response }) => {
+        if (statusCode >= 200 && statusCode < 300) resolve(response)
+        else reject(new Error(response.error || '网络请求失败'))
+      },
+      fail: reject
+    })
+  })
+}
+
+function callContainer({ path, method, data }) {
+  return new Promise((resolve, reject) => {
+    const token = getApp().globalData.token
+    wx.cloud.callContainer({
+      config: { env: CLOUD_ENV_ID },
+      path,
+      method,
+      data,
+      header: {
+        'content-type': 'application/json',
+        'X-WX-SERVICE': CLOUD_SERVICE,
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      success: ({ statusCode, data: response }) => {
+        if (statusCode >= 200 && statusCode < 300) resolve(response)
+        else reject(new Error((response && response.error) || '云托管请求失败'))
+      },
+      fail: reject
+    })
+  })
+}
+
+const getRoom = (roomId) => request({ path: `/api/rooms/${roomId}` })
+const createRoom = (data) => request({ path: '/api/rooms', method: 'POST', data })
+const joinRoom = (roomId, data) => request({ path: `/api/rooms/${roomId}/join`, method: 'POST', data })
+const topUp = (roomId, data) => request({ path: `/api/rooms/${roomId}/top-up`, method: 'POST', data })
+const getGame = (roomId, playerId) => request({ path: `/api/rooms/${roomId}/game?playerId=${encodeURIComponent(playerId)}` })
+const gameAction = (roomId, data) => request({ path: `/api/rooms/${roomId}/actions`, method: 'POST', data })
+const rollDice = (roomId, data) => request({ path: `/api/rooms/${roomId}/dice`, method: 'POST', data })
+const startGame = (roomId, data) => request({ path: `/api/rooms/${roomId}/start`, method: 'POST', data })
+const getHistory = (roomId) => request({ path: `/api/rooms/${roomId}/history` })
+const getPlayerHistory = (playerId) => request({ path: `/api/players/${encodeURIComponent(playerId)}/history` })
+
+module.exports = { request, getRoom, createRoom, joinRoom, topUp, getGame, gameAction, rollDice, startGame, getHistory, getPlayerHistory }

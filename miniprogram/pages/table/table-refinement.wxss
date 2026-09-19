@@ -1,0 +1,2 @@
+.actions .discard { background: #1d674b; color: #fff7e4; border-color: #17533e; }
+.tile.selected { transform: translateY(-13rpx); box-shadow: inset 0 0 0 3rpx #e2b649, 0 4rpx 0 #8e806a, 0 5rpx 6rpx rgba(0,0,0,.2); }

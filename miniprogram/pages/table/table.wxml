@@ -1,0 +1,44 @@
+<view class="page">
+  <view class="room-header">
+    <view class="brand"><text class="brand-mark">筑</text><text>城捉鸡</text></view>
+    <view class="room-name"><text>{{roomName}}</text><text class="room-id">· 房间 {{roomId}}</text></view>
+    <button class="share" open-type="share">分享</button>
+  </view>
+
+  <view class="table-shell">
+    <view class="table-felt">
+      <text class="felt-title">贵州 · 捉鸡麻将</text>
+
+      <view class="north player opponent">
+        <view class="player-meta"><text class="wind">{{players.north.wind}}</text><view><text>{{players.north.name}}</text><text class="score">{{players.north.score}} 分</text></view><text class="mic {{players.north.muted ? 'muted' : ''}}">⌁</text></view>
+        <view class="north-tiles"><view class="wall wall-horizontal"></view><view class="discard-row"><text wx:for="{{players.north.discards}}" wx:key="*this">{{item}}</text></view></view>
+      </view>
+
+      <view class="west player side-player"><view class="player-meta"><text class="wind">{{players.west.wind}}</text><view><text>{{players.west.name}}</text><text class="score">{{players.west.score}} 分</text></view></view><view class="side-body"><view class="wall wall-vertical"></view><view class="discard-side"><text wx:for="{{players.west.discards}}" wx:key="*this">{{item}}</text></view></view></view>
+      <view class="east player side-player"><view class="player-meta"><text class="wind active">{{players.east.wind}}</text><view><text>{{players.east.name}}</text><text class="score">{{players.east.score}} 分</text></view></view><view class="side-body right"><view class="discard-side"><text wx:for="{{players.east.discards}}" wx:key="*this">{{item}}</text></view><view class="wall wall-vertical"></view></view></view>
+
+      <view class="console">
+        <view class="console-label"><text>东风位</text><text>第 12 局</text><text>余 {{tilesLeft}} 张</text></view>
+        <button class="dice" bindtap="rollDice"><text>{{dice[0]}}</text><text>{{dice[1]}}</text></button>
+        <text class="dice-status">{{diceStatus}}</text>
+        <view class="fixed-chicken">幺鸡 · 八筒 · 固定鸡</view>
+      </view>
+
+      <view class="self player">
+        <view class="player-meta"><text class="wind">{{selfWind}}</text><view><text>我 · 哈哈</text><text class="score">{{ownScore}} 分</text></view><text class="mic">{{micOn ? '⌁' : '◌'}}</text></view>
+        <view class="self-discards"><text>一万</text><text>九筒</text><text>八筒</text><text>五条</text><text>七筒</text><text>三万</text></view>
+        <view class="chicken-zone"><text class="zone-label">鸡牌区</text><view wx:for="{{handChicken}}" wx:key="label" class="chicken {{item.sideways ? 'sideways' : ''}}"><view class="tile {{item.suit}}"><text>{{item.value}}</text><text>{{item.suit === 'wan' ? '萬' : item.suit === 'tiao' ? '竹' : '●'}}</text></view><text>{{item.label}}</text></view></view>
+        <view class="hand"><view wx:for="{{tiles}}" wx:key="index" data-index="{{index}}" bindtap="selectTile" class="tile {{item.suit}} {{selectedTileIndex === index ? 'selected' : ''}}"><text>{{item.value}}</text><text>{{item.symbol}}</text></view></view>
+      </view>
+    </view>
+  </view>
+
+  <view class="info-row">
+    <view class="random-chicken"><text class="info-label">随机鸡</text><view class="tile {{randomChicken.suit}} mini"><text>{{randomChicken.value}}</text><text>{{randomChicken.symbol}}</text></view><view><text>{{randomChicken.label}}</text><text>牌尾倒二 + 1</text></view></view>
+    <view class="voice"><text>牌桌语音</text><text class="voice-on">● 小潘正在说话</text><button bindtap="toggleMic">{{micOn ? '关闭麦克风' : '打开麦克风'}}</button></view>
+  </view>
+
+  <view class="spectators"><text>观众席 · 2 / 8</text><text>杨哥：只看小潘，可发言</text><text>林姐：已看 2 人，已禁言</text></view>
+
+  <view class="action-bar"><view class="turn"><text class="dot"></text><view><text>{{gameStatus === 'WAITING' ? '等待四人掷骰开局' : (currentPlayerId === playerId ? '轮到你操作' : '等待其他玩家')}}</text><text>不设出牌限时</text></view></view><view class="actions"><block wx:if="{{gameStatus === 'WAITING'}}"><button bindtap="startRound">开局</button></block><block wx:else><button wx:if="{{needsDraw}}" bindtap="drawTile">摸</button><button wx:else data-action="碰" bindtap="tryAction">碰</button><button data-action="杠" bindtap="tryAction">杠</button><button class="hu" data-action="胡" bindtap="tryAction">胡</button><button wx:if="{{!needsDraw}}" class="discard" bindtap="discardSelected">出</button></block></view><button class="details" bindtap="showDetails">明细</button></view>
+</view>

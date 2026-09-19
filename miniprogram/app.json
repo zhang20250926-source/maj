@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/home/home", "pages/table/table", "pages/history/history"],
+  "window": {
+    "navigationBarTitleText": "筑城捉鸡",
+    "navigationBarBackgroundColor": "#f0e7d4",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f0e7d4"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

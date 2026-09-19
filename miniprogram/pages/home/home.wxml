@@ -1,0 +1,7 @@
+<view class="page">
+  <view class="hero"><view class="brand"><text>筑</text>城捉鸡</view><text class="tagline">只和熟人，痛快打一把</text><view class="ink-mountain"></view></view>
+  <view class="identity"><view class="avatar">{{avatarText}}</view><view><text>{{nickname}}</text><text>长期积分 · {{score}} 分</text></view><button bindtap="openHistory">战绩</button></view>
+  <view class="create-card"><text class="card-title">开一桌熟人房</text><text class="card-copy">管理员创建后，直接把专属链接分享给牌友。</text><input value="{{roomName}}" maxlength="24" bindinput="setRoomName" placeholder="给这桌起个名字"/><button class="create" loading="{{creating}}" bindtap="createRoom">创建房间</button><button class="join" bindtap="showJoinTip">从分享链接加入</button></view>
+  <view class="features"><view><text>4</text><text>四人正式对局</text></view><view><text>⌁</text><text>牌桌实时语音</text></view><view><text>鸡</text><text>贵州捉鸡规则</text></view></view>
+  <view class="notice">积分可长期累积，管理员补100分会留存完整记录。</view>
+</view>
