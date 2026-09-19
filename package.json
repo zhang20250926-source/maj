@@ -1,0 +1,11 @@
+{
+  "name": "zhuocheng-zhuoji",
+  "version": "0.1.0",
+  "private": true,
+  "description": "熟人贵州捉鸡麻将：规则引擎与微信小程序",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server/index.js"
+  },
+  "engines": { "node": ">=20" }
+}
