@@ -1,14 +1,15 @@
 'use strict'
 
 class MySqlPersistence {
-  constructor({ address, username, password, database = 'zhuocheng' }) {
+  constructor({ address, username, password, database = 'zhuocheng', mysqlDriver = null }) {
     const [host, port = '3306'] = String(address || '').split(':')
     if (!host || !username || !password) throw new Error('MySQL 环境变量不完整')
     this.options = { host, port: Number(port), user: username, password, database }
+    this.mysqlDriver = mysqlDriver
   }
 
   async init() {
-    const mysql = require('mysql2/promise')
+    const mysql = this.mysqlDriver || require('mysql2/promise')
     const root = mysql.createPool({ ...this.options, database: undefined, waitForConnections: true, connectionLimit: 2 })
     await root.query(`CREATE DATABASE IF NOT EXISTS \`${this.options.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
     await root.end()
