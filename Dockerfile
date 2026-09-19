@@ -1,7 +1,8 @@
 FROM node:20-alpine
 
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY server ./server
 
 RUN addgroup -S mahjong && adduser -S mahjong -G mahjong && mkdir -p /app/data && chown -R mahjong:mahjong /app

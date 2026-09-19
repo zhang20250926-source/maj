@@ -7,7 +7,17 @@ const crypto = require('node:crypto')
 class GameStore {
   constructor(filePath = path.join(process.cwd(), 'data', 'zhuocheng.json')) {
     this.filePath = filePath
-    this.data = this.load()
+    this.data = this.normalize(this.load())
+    this.writeTail = Promise.resolve()
+  }
+
+  normalize(data) { return { players: {}, rooms: {}, transactions: [], rounds: [], activeGames: {}, ...data } }
+
+  async usePersistence(persistence) {
+    const remote = await persistence.init()
+    this.persistence = persistence
+    if (remote) this.data = this.normalize(remote)
+    else await persistence.save(this.data)
   }
 
   load() {
@@ -20,7 +30,13 @@ class GameStore {
     const staging = `${this.filePath}.tmp`
     fs.writeFileSync(staging, JSON.stringify(this.data, null, 2), 'utf8')
     fs.renameSync(staging, this.filePath)
+    if (this.persistence) this.writeTail = this.writeTail.catch(() => {}).then(() => this.persistence.save(this.data))
   }
+
+  async flush() { await this.writeTail }
+
+  saveActiveGame(roomId, state) { this.data.activeGames[roomId] = state; this.save() }
+  removeActiveGame(roomId) { delete this.data.activeGames[roomId]; this.save() }
 
   ensurePlayer({ id, nickname }) {
     if (!id) throw new Error('缺少玩家身份')

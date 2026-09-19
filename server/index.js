@@ -3,6 +3,7 @@
 const http = require('node:http')
 const { URL } = require('node:url')
 const { GameStore } = require('./store')
+const { MySqlPersistence } = require('./mysql-persistence')
 const { MahjongGame } = require('./game')
 const { websocketAccept, RealtimeHub } = require('./realtime')
 const { issueSession, verifySession, exchangeWeChatCode } = require('./auth')
@@ -13,6 +14,19 @@ const games = new Map()
 const realtime = new RealtimeHub()
 const port = Number(process.env.PORT || 8787)
 const sessionSecret = process.env.SESSION_SECRET || 'development-only-secret'
+
+async function initializePersistence() {
+  if (process.env.MYSQL_ADDRESS) {
+    await store.usePersistence(new MySqlPersistence({
+      address: process.env.MYSQL_ADDRESS,
+      username: process.env.MYSQL_USERNAME,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DATABASE || 'zhuocheng'
+    }))
+    console.log('长期积分已连接 MySQL')
+  }
+  for (const [roomId, state] of Object.entries(store.data.activeGames)) games.set(roomId, MahjongGame.fromState(state))
+}
 
 function send(response, status, body) {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' })
@@ -53,6 +67,7 @@ const server = http.createServer(async (request, response) => {
       // 公网出口开启时不能信任客户端可伪造的身份请求头；始终用微信 code 换取 openid。
       const identity = await exchangeWeChatCode({ code: body.code, appId: process.env.WECHAT_APP_ID, appSecret: process.env.WECHAT_APP_SECRET, apiBase: process.env.WECHAT_API_BASE })
       const player = store.ensurePlayer({ id: identity.openid, nickname: body.nickname })
+      await store.flush()
       return send(response, 200, { token: issueSession({ openid: identity.openid, nickname: player.nickname }, sessionSecret), player })
     }
     if (request.method === 'POST' && url.pathname === '/api/players') { const body = await readJson(request); assertActor(actorId, body.id); return send(response, 201, { player: store.ensurePlayer(body) }) }
@@ -60,7 +75,7 @@ const server = http.createServer(async (request, response) => {
       const playerId = segments[2]
       return send(response, 200, { rounds: store.data.rounds.filter((round) => Object.hasOwn(round.deltas, playerId)), transactions: store.data.transactions.filter((record) => record.playerId === playerId || record.operatorId === playerId) })
     }
-    if (request.method === 'POST' && url.pathname === '/api/rooms') { const body = await readJson(request); assertActor(actorId, body.adminId); return send(response, 201, { room: store.createRoom(body) }) }
+    if (request.method === 'POST' && url.pathname === '/api/rooms') { const body = await readJson(request); assertActor(actorId, body.adminId); const room = store.createRoom(body); await store.flush(); return send(response, 201, { room }) }
     if (segments[0] === 'api' && segments[1] === 'rooms' && segments[2]) {
       const roomId = segments[2]
       if (request.method === 'GET' && segments.length === 3) return send(response, 200, { room: store.getRoom(roomId), leaderboard: store.leaderboard(roomId) })
@@ -73,6 +88,7 @@ const server = http.createServer(async (request, response) => {
         if (room.adminId !== body.operatorId) throw new Error('只有管理员可以开局')
         const game = new MahjongGame({ playerIds: room.seats.map((seat) => seat.playerId) })
         game.assignSeats(body.diceByPlayer); const snapshot = game.start(); games.set(roomId, game)
+        store.saveActiveGame(roomId, game.toState()); await store.flush()
         realtime.broadcast(roomId, { type: 'GAME_STATE', game: snapshot })
         return send(response, 200, { game: snapshot })
       }
@@ -94,11 +110,15 @@ const server = http.createServer(async (request, response) => {
         const snapshot = result.snapshot || result; realtime.broadcast(roomId, { type: 'GAME_STATE', game: snapshot, result })
         if (snapshot.status === 'FINISHED' && result.deltas) {
           store.recordRound({ roomId, deltas: result.deltas, summary: { winnerId: result.winnerId || null, method: result.method || result.kind || 'draw', forfeitedPlayerId: result.forfeited ? result.playerId : null, hand: result.hand || null, payments: result.payments || [] } })
+          store.removeActiveGame(roomId)
+        } else {
+          store.saveActiveGame(roomId, game.toState())
         }
+        await store.flush()
         return send(response, 200, { result, game: snapshot })
       }
-      if (request.method === 'POST' && segments[3] === 'join') { const body = await readJson(request); assertActor(actorId, body.playerId); return send(response, 200, { room: store.joinRoom({ roomId, ...body }) }) }
-      if (request.method === 'POST' && segments[3] === 'observe') { const body = await readJson(request); assertActor(actorId, body.spectatorId); return send(response, 200, { observer: store.observePlayer({ roomId, ...body }) }) }
+      if (request.method === 'POST' && segments[3] === 'join') { const body = await readJson(request); assertActor(actorId, body.playerId); const room = store.joinRoom({ roomId, ...body }); await store.flush(); return send(response, 200, { room }) }
+      if (request.method === 'POST' && segments[3] === 'observe') { const body = await readJson(request); assertActor(actorId, body.spectatorId); const observer = store.observePlayer({ roomId, ...body }); await store.flush(); return send(response, 200, { observer }) }
       if (request.method === 'POST' && segments[3] === 'voice') {
         const body = await readJson(request); assertActor(actorId, body.playerId); const room = store.getRoom(roomId)
         const isPlayer = room.seats.some((seat) => seat.playerId === body.playerId)
@@ -107,7 +127,7 @@ const server = http.createServer(async (request, response) => {
         const observer = room.spectatorViews[body.playerId]
         return send(response, 200, { voice: issueVoiceAccess({ roomId, playerId: body.playerId, role, observer, provider: process.env.VOICE_PROVIDER || 'mock' }) })
       }
-      if (request.method === 'POST' && segments[3] === 'top-up') { const body = await readJson(request); assertActor(actorId, body.operatorId); return send(response, 200, store.topUp({ roomId, ...body })) }
+      if (request.method === 'POST' && segments[3] === 'top-up') { const body = await readJson(request); assertActor(actorId, body.operatorId); const result = store.topUp({ roomId, ...body }); await store.flush(); return send(response, 200, result) }
       if (request.method === 'GET' && segments[3] === 'history') return send(response, 200, { rounds: store.data.rounds.filter((round) => round.roomId === roomId), transactions: store.data.transactions.filter((record) => record.roomId === roomId) })
     }
     send(response, 404, { error: '接口不存在' })
@@ -124,4 +144,6 @@ server.on('upgrade', (request, socket) => {
   if (game) realtime.broadcast(url.searchParams.get('room'), { type: 'GAME_STATE', game: game.snapshot() })
 })
 
-server.listen(port, () => console.log(`筑城捉鸡服务已启动：http://127.0.0.1:${port}`))
+initializePersistence()
+  .then(() => server.listen(port, () => console.log(`筑城捉鸡服务已启动：http://127.0.0.1:${port}`)))
+  .catch((error) => { console.error('服务初始化失败：', error.message); process.exit(1) })

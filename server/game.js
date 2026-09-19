@@ -206,6 +206,16 @@ class MahjongGame {
     if (!this.players[playerId]) return snapshot
     return { ...snapshot, privateHand: this.players[playerId].hand.map(rules.clone) }
   }
+
+  toState() {
+    return { playerIds: this.playerIds, deck: this.deck, randomChicken: this.randomChicken, randomChickenKey: this.randomChickenKey, chickenBoost: this.chickenBoost, status: this.status, turnSeat: this.turnSeat, lastDiscard: this.lastDiscard, pendingKong: this.pendingKong, players: this.players }
+  }
+
+  static fromState(state) {
+    const game = Object.create(MahjongGame.prototype)
+    Object.assign(game, state, { random: Math.random })
+    return game
+  }
 }
 
 module.exports = { MahjongGame, shuffle }
