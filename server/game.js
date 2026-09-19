@@ -73,7 +73,9 @@ class MahjongGame {
     if (index < 0) throw new Error('手牌中没有这张牌')
     const [discarded] = player.hand.splice(index, 1)
     const chicken = this.isChicken(discarded)
-    const record = { card: rules.clone(discarded), playerId, chicken, sequence: chicken ? this.chickenSequence(discarded) : null, value: chicken ? rules.discardChickenValue(discarded, this.chickenSequence(discarded), this.chickenBoost, rules.keyOf(discarded) === this.randomChickenKey) : 0 }
+    const isRandomChicken = rules.keyOf(discarded) === this.randomChickenKey
+    // 连庄涨价只属于连续两局相同的“随机鸡”，不能连带抬高固定幺鸡、八筒。
+    const record = { card: rules.clone(discarded), playerId, chicken, sequence: chicken ? this.chickenSequence(discarded) : null, value: chicken ? rules.discardChickenValue(discarded, this.chickenSequence(discarded), isRandomChicken ? this.chickenBoost : 0, isRandomChicken) : 0 }
     if (chicken) player.chickenDiscards.push(record); else player.discards.push(record)
     this.lastDiscard = record
     return this.snapshot()
