@@ -59,6 +59,7 @@ class GameStore {
       seats: [{ playerId: admin.id, wind: null }],
       spectators: [],
       spectatorViews: {},
+      diceByPlayer: {},
       roundNumber: 0,
       sharePath: `/pages/table/table?room=${id}`
     }
@@ -97,6 +98,16 @@ class GameStore {
       if (room.seats.length >= 4) throw new Error('正式玩家已满，请进入观众席')
       room.seats.push({ playerId, wind: null })
     }
+    this.save()
+    return room
+  }
+
+  rollDice({ roomId, playerId, value }) {
+    const room = this.getRoom(roomId)
+    if (!room.seats.some((seat) => seat.playerId === playerId)) throw new Error('只有正式玩家可以掷骰子')
+    const dice = Number(value)
+    if (!Number.isInteger(dice) || dice < 1 || dice > 6) throw new Error('骰子必须为 1 到 6')
+    room.diceByPlayer[playerId] = dice
     this.save()
     return room
   }

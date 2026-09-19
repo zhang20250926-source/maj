@@ -87,11 +87,12 @@ const server = http.createServer(async (request, response) => {
         const body = await readJson(request); assertActor(actorId, body.operatorId); const room = store.getRoom(roomId)
         if (room.adminId !== body.operatorId) throw new Error('只有管理员可以开局')
         const game = new MahjongGame({ playerIds: room.seats.map((seat) => seat.playerId) })
-        game.assignSeats(body.diceByPlayer); const snapshot = game.start(); games.set(roomId, game)
+        game.assignSeats(room.diceByPlayer); const snapshot = game.start(); games.set(roomId, game)
         store.saveActiveGame(roomId, game.toState()); await store.flush()
         realtime.broadcast(roomId, { type: 'GAME_STATE', game: snapshot })
         return send(response, 200, { game: snapshot })
       }
+      if (request.method === 'POST' && segments[3] === 'dice') { const body = await readJson(request); assertActor(actorId, body.playerId); const room = store.rollDice({ roomId, ...body }); await store.flush(); return send(response, 200, { room }) }
       if (request.method === 'POST' && segments[3] === 'actions') {
         const body = await readJson(request); assertActor(actorId, body.playerId); const game = games.get(roomId); if (!game) throw new Error('本房间尚未开局')
         let result
@@ -101,6 +102,8 @@ const server = http.createServer(async (request, response) => {
           try { result = game.pong(body.playerId) } catch (error) { result = game.falsePong(body.playerId); result.notice = error.message }
         }
         else if (body.type === 'MING_KONG') result = game.mingKong(body.playerId)
+        else if (body.type === 'BU_KONG') result = game.buKong(body.playerId, body.card)
+        else if (body.type === 'FINISH_BU_KONG') result = game.finishBuKong()
         else if (body.type === 'PASS') result = game.continueAfterNoClaim()
         else if (body.type === 'WIN') {
           try { result = game.win(body.playerId, body.method) } catch (error) { result = game.falseWin(body.playerId); result.notice = error.message }
