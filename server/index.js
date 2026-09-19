@@ -50,12 +50,8 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && url.pathname === '/health') return send(response, 200, { ok: true })
     if (request.method === 'POST' && url.pathname === '/api/auth/wechat') {
       const body = await readJson(request)
-      // 小程序通过 wx.cloud.callContainer 调用时，云托管会注入该用户身份；
-      // 这样无需把 AppSecret 放进客户端或额外配置公网回调域名。
-      const cloudOpenId = request.headers['x-wx-openid']
-      const identity = cloudOpenId
-        ? { openid: String(cloudOpenId) }
-        : await exchangeWeChatCode({ code: body.code, appId: process.env.WECHAT_APP_ID, appSecret: process.env.WECHAT_APP_SECRET, apiBase: process.env.WECHAT_API_BASE })
+      // 公网出口开启时不能信任客户端可伪造的身份请求头；始终用微信 code 换取 openid。
+      const identity = await exchangeWeChatCode({ code: body.code, appId: process.env.WECHAT_APP_ID, appSecret: process.env.WECHAT_APP_SECRET, apiBase: process.env.WECHAT_API_BASE })
       const player = store.ensurePlayer({ id: identity.openid, nickname: body.nickname })
       return send(response, 200, { token: issueSession({ openid: identity.openid, nickname: player.nickname }, sessionSecret), player })
     }
