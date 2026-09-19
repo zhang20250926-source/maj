@@ -81,7 +81,10 @@ const server = http.createServer(async (request, response) => {
       if (request.method === 'GET' && segments.length === 3) return send(response, 200, { room: store.getRoom(roomId), leaderboard: store.leaderboard(roomId) })
       if (request.method === 'GET' && segments[3] === 'game') {
         const game = games.get(roomId); if (!game) throw new Error('本房间尚未开局')
-        return send(response, 200, { game: game.viewFor(url.searchParams.get('playerId')) })
+        const requestedPlayerId = url.searchParams.get('playerId')
+        assertActor(actorId, requestedPlayerId)
+        // 生产环境的私有手牌只按已验签的会话身份返回，绝不能由 query 参数指定他人的牌。
+        return send(response, 200, { game: game.viewFor(actorId || requestedPlayerId) })
       }
       if (request.method === 'POST' && segments[3] === 'start') {
         const body = await readJson(request); assertActor(actorId, body.operatorId); const room = store.getRoom(roomId)
