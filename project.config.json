@@ -27,11 +27,12 @@
       "outputPath": ""
     }
   },
-  "compileType": "miniprogram",
+  "compileType": "game",
   "libVersion": "3.7.9",
   "appid": "wxbb350a0eee021bd8",
   "projectname": "zhuocheng-zhuoji",
   "miniprogramRoot": "miniprogram/",
   "simulatorPluginLibVersion": {},
-  "editorSetting": {}
+  "editorSetting": {},
+  "isGameTourist": false
 }

@@ -1,9 +1,18 @@
 const { API_BASE_URL, CLOUD_ENV_ID, CLOUD_SERVICE, USE_CLOUD_RUN } = require('../config')
 
+function getSessionToken() {
+  // 普通小程序通过 getApp 保存会话；小游戏没有 App/getApp，改用 GameGlobal。
+  if (typeof getApp === 'function') {
+    try { return getApp().globalData.token } catch (_) {}
+  }
+  if (typeof GameGlobal !== 'undefined') return GameGlobal.sessionToken || null
+  return null
+}
+
 function request({ path, method = 'GET', data }) {
   if (USE_CLOUD_RUN) return callContainer({ path, method, data })
   return new Promise((resolve, reject) => {
-    const token = getApp().globalData.token
+    const token = getSessionToken()
     wx.request({
       url: `${API_BASE_URL}${path}`,
       method,
@@ -20,7 +29,7 @@ function request({ path, method = 'GET', data }) {
 
 function callContainer({ path, method, data }) {
   return new Promise((resolve, reject) => {
-    const token = getApp().globalData.token
+    const token = getSessionToken()
     wx.cloud.callContainer({
       config: { env: CLOUD_ENV_ID },
       path,
