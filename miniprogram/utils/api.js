@@ -40,11 +40,20 @@ function callContainer({ path, method, data }) {
         'X-WX-SERVICE': CLOUD_SERVICE,
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      success: ({ statusCode, data: response }) => {
+      success: ({ statusCode, data: response, errMsg }) => {
         if (statusCode >= 200 && statusCode < 300) resolve(response)
-        else reject(new Error((response && response.error) || '云托管请求失败'))
+        else {
+          const detail = response && typeof response === 'object'
+            ? (response.error || response.message || JSON.stringify(response))
+            : String(response || errMsg || '无响应内容')
+          console.error('云托管请求异常', { path, method, statusCode, response, errMsg })
+          reject(new Error(`云托管返回 ${statusCode || '未知状态'}：${detail.slice(0, 180)}`))
+        }
       },
-      fail: reject
+      fail: (error) => {
+        console.error('云托管调用失败', { path, method, error })
+        reject(new Error((error && (error.errMsg || error.message)) || '云托管调用失败'))
+      }
     })
   })
 }

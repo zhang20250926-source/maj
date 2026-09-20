@@ -38,7 +38,8 @@ const state = {
   buttons: [],
   roomName: '周末老友局',
   busy: false,
-  pollTimer: null
+  pollTimer: null,
+  offline: false
 }
 
 function roundedRect(x, y, w, h, radius, fill, stroke) {
@@ -108,6 +109,7 @@ function drawHome() {
 
   button('join-tip', '从好友分享进入房间', 55, 456, width - 110, 45, { fill: '#eadfbe', color: COLORS.ink })
   text('4 人正式对局  ·  牌桌实时同步  ·  贵州捉鸡规则', width / 2, 535, 12, COLORS.muted, 'center')
+  if (state.offline) text('当前为本机体验模式 · 联网恢复后自动使用云端房间', width / 2, 562, 11, COLORS.red, 'center')
   text('本游戏仅供熟人娱乐，不含现金与充值功能', width / 2, height - 40, 11, '#9b8e71', 'center')
 }
 
@@ -213,8 +215,12 @@ function showError(title, error) {
 async function ensureIdentity() {
   if (state.player && runtime.sessionToken) return state.player
   await Promise.resolve(wx.cloud && wx.cloud.init({ traceUser: true }))
-  const login = await new Promise((resolve, reject) => wx.login({ success: resolve, fail: reject }))
-  const result = await api.request({ path: '/api/auth/wechat', method: 'POST', data: { code: login.code, nickname: '哈哈' } })
+  let guestId = wx.getStorageSync('zhuocheng_guest_id')
+  if (!guestId) {
+    guestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`
+    wx.setStorageSync('zhuocheng_guest_id', guestId)
+  }
+  const result = await api.request({ path: '/api/auth/guest', method: 'POST', data: { guestId, nickname: '哈哈' } })
   runtime.sessionToken = result.token
   state.player = result.player
   return state.player
@@ -228,15 +234,81 @@ async function initialize() {
     if (roomId) await openRoom(roomId)
     else { state.screen = 'home'; state.message = ''; render() }
   } catch (error) {
+    // 云端账号尚未关联完成时，先允许用户完整体验单机牌桌流程。
+    state.offline = true
+    state.player = { id: 'local-demo', nickname: '哈哈', score: 100 }
     state.screen = 'home'
-    state.message = '登录暂未完成，请检查云托管配置'
+    state.message = '本机体验模式'
     render()
-    showError('连接失败', error)
+    console.warn('云端登录暂不可用，已进入本机体验模式：', error.message)
   }
+}
+
+function demoHand() {
+  return [
+    ['wan', 1], ['wan', 2], ['wan', 3], ['wan', 5], ['wan', 6],
+    ['tiao', 1], ['tiao', 3], ['tiao', 4], ['tiao', 7],
+    ['tong', 2], ['tong', 3], ['tong', 6], ['tong', 8], ['tong', 9]
+  ].map(([suit, rank]) => ({ suit, rank }))
+}
+
+function openLocalRoom() {
+  state.room = {
+    id: String(Math.floor(100000 + Math.random() * 900000)),
+    name: state.roomName,
+    status: 'WAITING',
+    seats: [
+      { playerId: state.player.id, nickname: state.player.nickname, score: 100 },
+      { playerId: 'demo-west', nickname: '阿杰', score: 100 },
+      { playerId: 'demo-north', nickname: '陈大哥', score: 100 },
+      { playerId: 'demo-east', nickname: '小潘', score: 100 }
+    ],
+    spectators: []
+  }
+  state.game = { status: 'WAITING', tilesLeft: 108, currentPlayerId: null, players: [], privateHand: [], randomChicken: null }
+  state.screen = 'table'
+  state.message = '本机体验房 · 可直接掷骰开局'
+  render()
+}
+
+function startLocalGame() {
+  state.room.status = 'PLAYING'
+  state.game = {
+    status: 'PLAYING',
+    tilesLeft: 55,
+    currentPlayerId: state.player.id,
+    randomChicken: { suit: 'tong', rank: 3 },
+    players: [{ id: state.player.id, score: 100, wind: 'south' }],
+    privateHand: demoHand()
+  }
+  state.message = '本机体验局已开始 · 请选择手牌后出牌'
+  render()
+}
+
+function handleLocalAction(target) {
+  if (target.id === 'dice') { state.message = `你掷出 ${Math.floor(Math.random() * 6) + 1} 点`; return render() }
+  if (target.id === 'start') return startLocalGame()
+  if (target.id === 'draw') {
+    const suits = ['wan', 'tiao', 'tong']
+    state.game.privateHand.push({ suit: suits[Math.floor(Math.random() * 3)], rank: Math.floor(Math.random() * 9) + 1 })
+    state.game.tilesLeft -= 1; state.message = '已摸牌'; return render()
+  }
+  if (target.id === 'discard') {
+    if (state.selectedTileIndex == null) return wx.showToast({ title: '请先选择一张手牌', icon: 'none' })
+    const card = state.game.privateHand.splice(state.selectedTileIndex, 1)[0]
+    state.selectedTileIndex = null; state.message = `已打出 ${tileLabel(card)}`; return render()
+  }
+  if (target.id === 'pong' || target.id === 'kong' || target.id === 'win') {
+    const labels = { pong: '碰', kong: '杠', win: '胡' }
+    state.message = `已体验“${labels[target.id]}”操作；联网牌局会由服务器校验规则`
+    return render()
+  }
+  return false
 }
 
 async function createRoom() {
   if (state.busy) return
+  if (state.offline) return openLocalRoom()
   state.busy = true
   render()
   try {
@@ -298,6 +370,7 @@ async function handleButton(target) {
     state.pollTimer = null; state.screen = 'home'; state.room = null; state.game = null; state.message = ''; return render()
   }
   if (target.id === 'tile') { state.selectedTileIndex = target.payload; return render() }
+  if (state.offline && ['dice', 'start', 'draw', 'pong', 'kong', 'win', 'discard'].includes(target.id)) return handleLocalAction(target)
   if (target.id === 'dice') {
     try {
       const value = Math.floor(Math.random() * 6) + 1

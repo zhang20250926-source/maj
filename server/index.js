@@ -60,7 +60,8 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`)
   const segments = url.pathname.split('/').filter(Boolean)
   try {
-    const actorId = url.pathname === '/api/auth/wechat' ? null : authenticatedPlayerId(request)
+    const publicAuthPaths = new Set(['/api/auth/wechat', '/api/auth/guest'])
+    const actorId = publicAuthPaths.has(url.pathname) ? null : authenticatedPlayerId(request)
     if (request.method === 'GET' && url.pathname === '/health') return send(response, 200, { ok: true })
     if (request.method === 'POST' && url.pathname === '/api/auth/wechat') {
       const body = await readJson(request)
@@ -69,6 +70,16 @@ const server = http.createServer(async (request, response) => {
       const player = store.ensurePlayer({ id: identity.openid, nickname: body.nickname })
       await store.flush()
       return send(response, 200, { token: issueSession({ openid: identity.openid, nickname: player.nickname }, sessionSecret), player })
+    }
+    if (request.method === 'POST' && url.pathname === '/api/auth/guest') {
+      const body = await readJson(request)
+      const guestId = String(body.guestId || '').trim()
+      if (!/^[a-zA-Z0-9_-]{16,80}$/.test(guestId)) throw new Error('体验账号标识无效')
+      const nickname = String(body.nickname || '牌友').trim().slice(0, 12) || '牌友'
+      const openid = `guest-${guestId}`
+      const player = store.ensurePlayer({ id: openid, nickname })
+      await store.flush()
+      return send(response, 200, { token: issueSession({ openid, nickname: player.nickname }, sessionSecret), player, guest: true })
     }
     if (request.method === 'POST' && url.pathname === '/api/players') { const body = await readJson(request); assertActor(actorId, body.id); return send(response, 201, { player: store.ensurePlayer(body) }) }
     if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'players' && segments[2] && segments[3] === 'history') {

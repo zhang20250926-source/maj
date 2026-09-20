@@ -1,9 +1,9 @@
-// 微信云托管：小程序经 callContainer 内网调用，不需要配置业务域名或备案。
+// 微信云托管环境信息保留，便于环境授权完成后切回私有链路。
 const CLOUD_ENV_ID = 'prod-d7gf8lw3n60ac72fa'
 const CLOUD_SERVICE = 'express-k468'
-const USE_CLOUD_RUN = true
+// 当前小游戏 AppID 尚未获 callContainer 环境权限，先走云托管公网 HTTPS 域名。
+const USE_CLOUD_RUN = false
 
-// 仅用于本机 Node 服务联调。正式小程序不使用该地址。
-const API_BASE_URL = 'http://127.0.0.1:8787'
+const API_BASE_URL = 'https://express-k468-316861-10-1492186961.sh.run.tcloudbase.com'
 
 module.exports = { API_BASE_URL, CLOUD_ENV_ID, CLOUD_SERVICE, USE_CLOUD_RUN }
